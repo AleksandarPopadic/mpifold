@@ -1,0 +1,13 @@
+opam-version: "2.0"
+version: "~dev"
+synopsis: "A parallel fold function using MPI"
+maintainer: "Aleksandar Popadić <aleksandar.popadic@siol.net>"
+authors: "Aleksandar Popadić <aleksandar.popadic@siol.net>"
+license: "LGPL"
+homepage: "https://github.com/AleksandarPopadic/mpifold"
+bug-reports: "https://github.com/AleksandarPopadic/mpifold/issues"
+depends: [ "mpi" ]
+build: [
+  ["dune" "build" "-p" name]
+]
+dev-repo: "git+https://github.com/AleksandarPopadic/mpifold.git"

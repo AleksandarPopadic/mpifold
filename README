@@ -1,0 +1,12 @@
+INTRODUCTION
+
+Mpifold provides fold function using MPI. The folding is split into
+two parts. The transformation, which is performed in parallel across
+children nodes, and the folding itself, which is performed in sequence
+on the parent node, consuming the transformed values as they arrive
+from the children nodes.
+
+
+USAGE
+
+For a simple example of usage see example.ml.

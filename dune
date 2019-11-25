@@ -1,0 +1,18 @@
+(library
+ (name mpifold)
+ (public_name mpifold)
+ (modules mpifold)
+ (libraries mpi)
+)
+
+(executable
+ (name example)
+ (modules example)
+ (libraries base stdio mpifold)
+)
+
+(alias
+ (name runtest)
+ (deps example.exe)
+ (action (run mpirun -np 4 ./example.exe))
+)
