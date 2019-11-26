@@ -41,13 +41,13 @@ module Make (Foldable : Foldable) = struct
         match children with
         | 0 -> raise e
         | _ ->
-          let (_, rank, tag) = Mpi.receive_status Mpi.any_source Mpi.any_tag Mpi.comm_world in
+          let (_, rank, tag) = Mpi.receive_status Mpi.any_source Mpi.any_tag comm in
           if tag = tag_ready then (
-            Mpi.send e rank tag_exception Mpi.comm_world
+            Mpi.send e rank tag_exception comm
           )
           else if tag = tag_done || tag = tag_exception then (
-            let _ = Mpi.receive rank tag_ready Mpi.comm_world in
-            Mpi.send e rank tag_exception Mpi.comm_world
+            let _ = Mpi.receive rank tag_ready comm in
+            Mpi.send e rank tag_exception comm
           )
           else (
             raise (Unknown_tag "Received unknown tag during fail.")
@@ -60,13 +60,13 @@ module Make (Foldable : Foldable) = struct
           let (accum, _, _) = Buffer.advance_buffer buffer in
           accum
         | _ ->
-          let (rank, tag) = Mpi.probe Mpi.any_source Mpi.any_tag Mpi.comm_world in
+          let (rank, tag) = Mpi.probe Mpi.any_source Mpi.any_tag comm in
           if tag = tag_ready then
-            let () = Mpi.receive rank tag_ready Mpi.comm_world in
-            Mpi.send () rank tag_exit Mpi.comm_world;
+            let () = Mpi.receive rank tag_ready comm in
+            Mpi.send () rank tag_exit comm;
             exit (children -1) buffer
           else if tag = tag_done then (
-            let transformed = Mpi.receive rank tag_done Mpi.comm_world in
+            let transformed = Mpi.receive rank tag_done comm in
             exit children (Buffer.add buffer transformed)
           )
           else (
@@ -76,23 +76,23 @@ module Make (Foldable : Foldable) = struct
       in
       let outer_loop children i buffer a =
         let rec loop buffer =
-          let (rank, tag) =  Mpi.probe Mpi.any_source Mpi.any_tag Mpi.comm_world in
+          let (rank, tag) =  Mpi.probe Mpi.any_source Mpi.any_tag comm in
           if tag = tag_ready then (
-            let () = Mpi.receive rank tag_ready Mpi.comm_world in
-            Mpi.send (i, a) rank tag_start Mpi.comm_world;
+            let () = Mpi.receive rank tag_ready comm in
+            Mpi.send (i, a) rank tag_start comm;
             buffer
           )
           else if tag = tag_done then (
-            let transformed = Mpi.receive rank tag Mpi.comm_world in
+            let transformed = Mpi.receive rank tag comm in
             let buffer = Buffer.add buffer transformed in
             loop buffer
           )
           else if tag = tag_exception then (
-            let (e : exn) = Mpi.receive rank tag_exception Mpi.comm_world in
+            let (e : exn) = Mpi.receive rank tag_exception comm in
             fail (children - 1) e
           )
           else (
-            let _ = Mpi.receive rank tag Mpi.comm_world in
+            let _ = Mpi.receive rank tag comm in
             let e = (Unknown_tag (sprintf "Rank %i received unknown tag: %i." myrank tag)) in
             fail children e
           )
@@ -109,31 +109,31 @@ module Make (Foldable : Foldable) = struct
     )
     else (
       let rec child_loop () =
-        Mpi.send () 0 tag_ready Mpi.comm_world;
-        let (_, tag) = Mpi.probe 0 Mpi.any_tag Mpi.comm_world in
+        Mpi.send () 0 tag_ready comm;
+        let (_, tag) = Mpi.probe 0 Mpi.any_tag comm in
         if tag = tag_start then (
-          let i, a = Mpi.receive 0 tag_start Mpi.comm_world in
+          let i, a = Mpi.receive 0 tag_start comm in
           let transformed= try
               transform i a
             with
             | e ->
-              Mpi.send e 0 tag_exception Mpi.comm_world;
+              Mpi.send e 0 tag_exception comm;
               raise e
           in
-          Mpi.send (i, transformed) 0 tag_done Mpi.comm_world;
+          Mpi.send (i, transformed) 0 tag_done comm;
           child_loop ()
         )
         else if tag = tag_exit then (
-          Mpi.receive 0 tag_exit Mpi.comm_world |> ignore;
+          Mpi.receive 0 tag_exit comm |> ignore;
         )
         else if tag = tag_exception then (
-          let e = Mpi.receive 0 tag_exception Mpi.comm_world in
+          let e = Mpi.receive 0 tag_exception comm in
           raise e
         )
         else (
-          let _ = Mpi.receive 0 tag Mpi.comm_world in
+          let _ = Mpi.receive 0 tag comm in
           let e = (Unknown_tag (sprintf "Rank %i received unknown tag: %i." myrank tag)) in
-          Mpi.send e 0 tag_exception Mpi.comm_world;
+          Mpi.send e 0 tag_exception comm;
           raise e
         )
       in
