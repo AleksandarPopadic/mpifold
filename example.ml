@@ -9,7 +9,7 @@ let l = [0; 1; 2; 3; 4; 5; 6; 7; 8; 9]
 module Mpifold_list = Mpifold.Make (List)
 
 let result =
-  Mpifold_list.mpifold ~ordered:false l
+  Mpifold_list.fold ~ordered:false l
     (* The transform function is called on children nodes. *)
     ~transform:(fun x ->
         printf "%i: calculating f %i\n%!" myrank x;
