@@ -28,7 +28,7 @@ module Make (Foldable : Foldable) = struct
       (type accum')
       ?(comm=Mpi.comm_world)
       t
-      ~transform
+      ~map
       ~(init: accum')
       (module State : State with type accum = accum') =
     let myrank = Mpi.comm_rank comm in
@@ -61,9 +61,9 @@ module Make (Foldable : Foldable) = struct
             Mpi.send () rank tag_exit comm;
             exit (children -1) state
           else if tag = tag_done then (
-            let transformed = Mpi.receive rank tag_done comm in
+            let mapped = Mpi.receive rank tag_done comm in
             let state = if State.continue state then
-                State.advance state transformed
+                State.advance state mapped
               else
                 state
             in
@@ -83,8 +83,8 @@ module Make (Foldable : Foldable) = struct
             state
           )
           else if tag = tag_done then (
-            let transformed = Mpi.receive rank tag comm in
-            let state = State.advance state transformed in
+            let mapped = Mpi.receive rank tag comm in
+            let state = State.advance state mapped in
             if State.continue state then
               loop state
             else
@@ -119,14 +119,14 @@ module Make (Foldable : Foldable) = struct
         let (_, tag) = Mpi.probe 0 Mpi.any_tag comm in
         if tag = tag_start then (
           let i, a = Mpi.receive 0 tag_start comm in
-          let transformed= try
-              transform i a
+          let mapped = try
+              map i a
             with
             | e ->
               Mpi.send e 0 tag_exception comm;
               raise e
           in
-          Mpi.send (i, transformed) 0 tag_done comm;
+          Mpi.send (i, mapped) 0 tag_done comm;
           child_loop ()
         )
         else if tag = tag_exit then (
@@ -147,7 +147,7 @@ module Make (Foldable : Foldable) = struct
       None
     )
 
-  let foldi (type b') (type accum') ?(comm=Mpi.comm_world) ?(ordered=true) t ~transform ~init ~f =
+  let map_foldi (type b') (type accum') ?(comm=Mpi.comm_world) ?(ordered=true) t ~map ~init ~f =
     let module State_delayed = struct
       module Int = struct
         type t = int
@@ -159,15 +159,15 @@ module Make (Foldable : Foldable) = struct
       type t = accum' * int * b' Buff.t
       let rec advance_buffer (accum, next, buff) =
         match Buff.find_opt next buff with
-        | Some transformed ->
-          let accum = f next accum transformed in
+        | Some mapped ->
+          let accum = f next accum mapped in
           let buff = Buff.remove next buff in
           advance_buffer (accum, (next + 1), buff)
         | None -> (accum, next, buff)
       let init accum = (accum, 0, Buff.empty)
       let get_accum (accum, _, _) = accum
-      let advance (accum, next, buff) (i, t) =
-        advance_buffer (accum, next, (Buff.add i t buff))
+      let advance (accum, next, buff) (i, x) =
+        advance_buffer (accum, next, (Buff.add i x buff))
       let continue _ = true
     end
     in
@@ -177,7 +177,7 @@ module Make (Foldable : Foldable) = struct
       type t = accum'
       let init accum = accum
       let get_accum accum = accum
-      let advance accum (i, t) = f i accum t
+      let advance accum (i, x) = f i accum x
       let continue _ = true
     end
     in
@@ -186,16 +186,16 @@ module Make (Foldable : Foldable) = struct
       else
         (module State_imediate : State with type accum = accum')
     in
-    scheduler ~comm t ~transform ~init s
+    scheduler ~comm t ~map ~init s
 
-  let fold ?(comm=Mpi.comm_world) ?(ordered=true) t ~transform ~init ~f =
-    foldi ~comm ~ordered t ~transform:(fun _ -> transform) ~init ~f:(fun _ -> f)
+  let map_fold ?(comm=Mpi.comm_world) ?(ordered=true) t ~map ~init ~f =
+    map_foldi ~comm ~ordered t ~map:(fun _ -> map) ~init ~f:(fun _ -> f)
 
   let iteri ?(comm=Mpi.comm_world) t ~f =
-    foldi ~comm ~ordered:false t ~transform:f ~init:() ~f:(fun _ () () -> ()) |> ignore
+    map_foldi ~comm ~ordered:false t ~map:f ~init:() ~f:(fun _ () () -> ()) |> ignore
 
   let iter ?(comm=Mpi.comm_world) t ~f =
-    foldi ~comm ~ordered:false t ~transform:(fun _ -> f) ~init:() ~f:(fun _ () () -> ()) |> ignore
+    map_foldi ~comm ~ordered:false t ~map:(fun _ -> f) ~init:() ~f:(fun _ () () -> ()) |> ignore
 
   let existsi ?(comm=Mpi.comm_world) t ~f =
     let module State = struct
@@ -208,7 +208,7 @@ module Make (Foldable : Foldable) = struct
       let continue t = not t
     end
     in
-    scheduler ~comm t ~transform:f ~init:false (module State : State with type accum = bool)
+    scheduler ~comm t ~map:f ~init:false (module State : State with type accum = bool)
 
   let exists ?(comm=Mpi.comm_world) t ~f = existsi ~comm t ~f:(fun _ -> f)
 
@@ -223,7 +223,7 @@ module Make (Foldable : Foldable) = struct
       let continue t = t
     end
     in
-    scheduler ~comm t ~transform:f ~init:true (module State : State with type accum = bool)
+    scheduler ~comm t ~map:f ~init:true (module State : State with type accum = bool)
 
   let for_all ?(comm=Mpi.comm_world) t ~f = for_alli ~comm t ~f:(fun _ -> f)
 
@@ -242,17 +242,17 @@ module Make (Foldable : Foldable) = struct
         | Some _ -> false
     end
     in
-    let transform i x =
+    let map i x =
       let cond = f i x in
       match cond with
       | true -> Some x
       | false -> None
     in
-    let opt = scheduler ~comm t ~transform ~init:None (module State : State with type accum = (int * a) option) in
+    let opt = scheduler ~comm t ~map ~init:None (module State : State with type accum = (int * a) option) in
     match opt with
     | Some (Some x) -> Some x
     | _ -> None
-      
+
   let find ?(comm=Mpi.comm_world) t ~f =
     match findi ~comm t ~f:(fun _ -> f) with
     | Some (_, x) -> Some x
