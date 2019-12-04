@@ -34,7 +34,6 @@ module Make (Foldable : Foldable) = struct
     let myrank = Mpi.comm_rank comm in
     if myrank = 0 then (
       let rec fail children e =
-        printf "%i\n%!" children;
         match children with
         | 0 -> raise e
         | _ ->
