@@ -10,9 +10,3 @@
  (modules example)
  (libraries base stdio mpifold)
 )
-
-(alias
- (name runtest)
- (deps example.exe)
- (action (run mpirun -np 4 ./example.exe))
-)
