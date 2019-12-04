@@ -8,6 +8,6 @@ homepage: "https://github.com/AleksandarPopadic/mpifold"
 bug-reports: "https://github.com/AleksandarPopadic/mpifold/issues"
 depends: [ "mpi" ]
 build: [
-  ["dune" "build" "-p" name]
+  ["dune" "build" "-p" name "-j" jobs]
 ]
 dev-repo: "git+https://github.com/AleksandarPopadic/mpifold.git"
